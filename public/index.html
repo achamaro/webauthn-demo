@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ja">
+    <head>
+        <title>WebAuthn DEMO</title>
+        <meta charset="utf-8">
+    </head>
+    <body>
+        <section>
+            <h1>Registration</h1>
+            <form onsubmit="return false;">
+                <input type="email" name="email" placeholder="email" required/>
+                <button onclick="register(event);">登録</button>
+                <button onclick="login(event);">ログイン</button>
+            </form>
+        </section>
+
+
+        <script>
+            // Base64 to ArrayBuffer
+            function bufferDecode(value) {
+                return Uint8Array.from(atob(value), c => c.charCodeAt(0));
+            }
+
+            // ArrayBuffer to URLBase64
+            function bufferEncode(value) {
+                return btoa(String.fromCharCode(...new Uint8Array(value)))
+                    .replace(/\+/g, "-")
+                    .replace(/\//g, "_")
+                    .replace(/=/g, "");
+            }
+
+            async function register(e) {
+                let resp = await fetch(`/register/${window.encodeURIComponent(e.currentTarget.form.elements.email.value)}`);
+                const createOptions = await resp.json();
+
+                console.log(createOptions);
+
+                // base64をデコード
+                createOptions.publicKey.challenge = bufferDecode(createOptions.publicKey.challenge);
+                createOptions.publicKey.user.id = bufferDecode(createOptions.publicKey.user.id);
+                if (createOptions.publicKey.excludeCredentials) {
+                    createOptions.publicKey.excludeCredentials.forEach(it => it.id = bufferDecode(it.id));
+                }
+
+                const credential = await window.navigator.credentials.create(createOptions);
+
+                console.log(credential);
+
+                const {
+                    rawId,
+                    response: {
+                        attestationObject,
+                        clientDataJSON,
+                    },
+                } = credential;
+
+                const decodedCredential = {
+                    id: credential.id,
+                    type: credential.type,
+                    rawId: bufferEncode(rawId),
+                    response: {
+                        attestationObject: bufferEncode(attestationObject),
+                        clientDataJSON: bufferEncode(clientDataJSON),
+                    },
+                };
+
+                resp = await fetch("/register", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "applicaion/json"
+                    },
+                    body: JSON.stringify(decodedCredential)
+                })
+                const result = await resp.json();
+
+                console.log(result);
+            }
+
+            async function login(e) {
+                let resp = await fetch(`/login/${window.encodeURIComponent(e.currentTarget.form.elements.email.value)}`);
+                const requestOptions = await resp.json();
+
+                console.log(requestOptions);
+
+                // base64をデコード
+                requestOptions.publicKey.challenge = bufferDecode(requestOptions.publicKey.challenge);
+                requestOptions.publicKey.allowCredentials.forEach(it => it.id = bufferDecode(it.id));
+
+                const assertion = await window.navigator.credentials.get(requestOptions);
+
+                console.log(assertion);
+
+                const {
+                    rawId,
+                    response: {
+                        authenticatorData,
+                        clientDataJSON,
+                        signature,
+                        userHandle,
+                    },
+                } = assertion;
+
+                const decodedCredential = {
+                    id: assertion.id,
+                    type: assertion.type,
+                    rawId: bufferEncode(rawId),
+                    response: {
+                        authenticatorData: bufferEncode(authenticatorData),
+                        clientDataJSON: bufferEncode(clientDataJSON),
+                        signature: bufferEncode(signature),
+                        userHandle: bufferEncode(userHandle),
+                    },
+                };
+
+                resp = await fetch("/login", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "applicaion/json"
+                    },
+                    body: JSON.stringify(decodedCredential)
+                })
+                const result = await resp.json();
+
+                console.log(result);
+            }
+        </script>
+    </body>
+</html>
