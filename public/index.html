@@ -3,17 +3,67 @@
     <head>
         <title>WebAuthn DEMO</title>
         <meta charset="utf-8">
+        <style>
+            .iconList {
+                margin: 8px 0;
+            }
+            .iconList label + label {
+                margin-left: 8px;
+            }
+            .iconList [type="radio"] {
+                display: none;
+            }
+            .iconList img {
+                width: 30px;
+                height: 30px;
+            }
+            .iconList [type="radio"] + div {
+                display: inline-flex;
+                padding: 8px;
+                border-radius: 100px;
+                box-shadow: 0 0 2px 0 gray;
+            }
+            .iconList [type="radio"]:checked + div {
+                box-shadow: 0 0 1px 1px darkcyan;
+            }
+        </style>
     </head>
     <body>
         <section>
             <h1>Registration</h1>
-            <form onsubmit="return false;">
-                <input type="email" name="email" placeholder="email" required/>
-                <button onclick="register(event);">登録</button>
-                <button onclick="login(event);">ログイン</button>
+            <form onsubmit="register(this);return false;">
+                <input type="email" name="email" placeholder="Email" required/><br/>
+                <input type="text" name="name" placeholder="Display Name" required/><br/>
+                <section class="iconList">
+                    <label>
+                        <input type="radio" name="icon" value="http://localhost:8080/images/duck.png" checked/>
+                        <div><img src="http://localhost:8080/images/duck.png"/></div>
+                    </label>
+                    <label>
+                        <input type="radio" name="icon" value="http://localhost:8080/images/fox.png"/>
+                        <div><img src="http://localhost:8080/images/fox.png"/></div>
+                    </label>
+                    <label>
+                        <input type="radio" name="icon" value="http://localhost:8080/images/hen.png"/>
+                        <div><img src="http://localhost:8080/images/hen.png"/></div>
+                    </label>
+                    <label>
+                        <input type="radio" name="icon" value="http://localhost:8080/images/koala.png"/>
+                        <div><img src="http://localhost:8080/images/koala.png"/></div>
+                    </label>
+                    <label>
+                        <input type="radio" name="icon" value="http://localhost:8080/images/toucan.png"/>
+                        <div><img src="http://localhost:8080/images/toucan.png"/></div>
+                    </label>
+                </section>
+                <button>regiser</button>
             </form>
         </section>
 
+        <section>
+            <h1>Signin</h1>
+            <button onclick="signin()">siginin</button>
+        </section>
 
         <script>
             // Base64 to ArrayBuffer
@@ -29,8 +79,11 @@
                     .replace(/=/g, "");
             }
 
-            async function register(e) {
-                let resp = await fetch(`/register/${window.encodeURIComponent(e.currentTarget.form.elements.email.value)}`);
+            async function register(form) {
+                let resp = await fetch(`/auth/webauthn/register/request`, {
+                    method: "POST",
+                    body: new FormData(form)
+                });
                 const createOptions = await resp.json();
 
                 console.log(createOptions);
@@ -54,7 +107,7 @@
                     },
                 } = credential;
 
-                const decodedCredential = {
+                const encodedCredential = {
                     id: credential.id,
                     type: credential.type,
                     rawId: bufferEncode(rawId),
@@ -64,27 +117,27 @@
                     },
                 };
 
-                resp = await fetch("/register", {
+                resp = await fetch("/auth/webauthn/register/response", {
                     method: "POST",
                     headers: {
                         "Content-Type": "applicaion/json"
                     },
-                    body: JSON.stringify(decodedCredential)
+                    body: JSON.stringify(encodedCredential)
                 })
                 const result = await resp.json();
 
                 console.log(result);
             }
 
-            async function login(e) {
-                let resp = await fetch(`/login/${window.encodeURIComponent(e.currentTarget.form.elements.email.value)}`);
+            async function signin(e) {
+                let resp = await fetch(`/auth/webauthn/signin/request`);
                 const requestOptions = await resp.json();
 
                 console.log(requestOptions);
 
                 // base64をデコード
                 requestOptions.publicKey.challenge = bufferDecode(requestOptions.publicKey.challenge);
-                requestOptions.publicKey.allowCredentials.forEach(it => it.id = bufferDecode(it.id));
+                requestOptions.publicKey.allowCredentials?.forEach(it => it.id = bufferDecode(it.id));
 
                 const assertion = await window.navigator.credentials.get(requestOptions);
 
@@ -100,7 +153,7 @@
                     },
                 } = assertion;
 
-                const decodedCredential = {
+                const encodedAssertion = {
                     id: assertion.id,
                     type: assertion.type,
                     rawId: bufferEncode(rawId),
@@ -112,12 +165,12 @@
                     },
                 };
 
-                resp = await fetch("/login", {
+                resp = await fetch("/auth/webauthn/signin/response", {
                     method: "POST",
                     headers: {
                         "Content-Type": "applicaion/json"
                     },
-                    body: JSON.stringify(decodedCredential)
+                    body: JSON.stringify(encodedAssertion)
                 })
                 const result = await resp.json();
 
